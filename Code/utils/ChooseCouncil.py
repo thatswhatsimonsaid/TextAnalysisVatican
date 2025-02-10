@@ -1,3 +1,4 @@
+### Packages ###
 from .GetVatican1Documents import *
 from .GetVatican2Documents import *
 
@@ -8,4 +9,4 @@ def ChooseCouncilFunction(council, LanguageCode):
     elif council.upper() == 'II':
         return GetVatican2Documents(LanguageCode)
     else:
-        raise ValueError("Council must be either 'I' or 'II'")
+        raise ValueError("Council input value must be either 'I' or 'II'")

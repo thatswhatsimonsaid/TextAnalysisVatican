@@ -6,3 +6,12 @@ from .GetVatican2URLS import *
 from .ChooseCouncil import *
 from .TopicModellingFunction import *
 from .WordFrequencyAnalysis import *
+from .GetEncylicalLinks import *
+from .ScrapeEncylicals import *
+from .ExtractEncylicalContent import *
+from .DivergingBarChart import *
+from .LoadEncylicals import *
+from .GetEncyclicalDates import *
+from .SaveEncylicals import *
+from .SentimentAnalysis import *
+from .PlotSentimentAnalysis import *

@@ -5,7 +5,7 @@ import re
 from .CleanText import ProcessText  # Import ProcessText function
 
 ## Extract Document Content #
-def ExtractDocumentContent(url, headers, stopwords_set=None):
+def ExtractDocumentContentFunction(url, headers, stopwords_set=None):
 
     # Set Up #
     response = requests.get(url, headers=headers)
@@ -47,13 +47,11 @@ def ExtractDocumentContent(url, headers, stopwords_set=None):
             ]):
                 paragraphs.append(text)
 
-    # Process full text at once (after combining paragraphs)
+    # Process and rejoin cleaned words #
     DocumentText = " ".join(paragraphs) if paragraphs else ""
-    
-    if DocumentText:
-        DocumentText = " ".join(ProcessText(DocumentText, stopwords_set))  # Process and rejoin cleaned words
+    DocumentText = " ".join(ProcessText(DocumentText, stopwords_set))  
 
-    # Output
+    # Output #
     Output = {
         "Title": title,
         "Date": date,

@@ -1,16 +1,10 @@
+### Packages ###
 import re
-import nltk
 from nltk.tokenize import word_tokenize
-from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 
-# Ensure NLTK resources are downloaded (run once)
-nltk.download('punkt')
-nltk.download('stopwords')
-nltk.download('wordnet')
-
-### One Function: Clean, Tokenize, Remove Stopwords, Lemmatize ###
-def ProcessText(text, stopwords_set=None):
+### Function ###
+def ProcessText(text, StopWords=None):
 
     ### Initialize Lemmatizer ###
     lemmatizer = WordNetLemmatizer()
@@ -26,7 +20,7 @@ def ProcessText(text, stopwords_set=None):
     ### Tokenize ###
     words = word_tokenize(text)
 
-    ### Lemmatize if not in stop words ###
-    Output = [lemmatizer.lemmatize(word) for word in words if not stopwords_set or word not in stopwords_set]
+    ### Lemmatize if not in stop words###
+    Output = [lemmatizer.lemmatize(word) for word in words if not StopWords or word not in StopWords]
     
     return Output
