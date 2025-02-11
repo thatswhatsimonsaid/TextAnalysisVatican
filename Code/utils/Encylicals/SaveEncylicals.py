@@ -52,9 +52,9 @@ def SaveEnclylicals():
                     pickle.dump(DocumentData, output)
                 
                 ## Print saved document ##
-                print(f"Saved: {DocumentTitle}")
+                print(f"Saved: {DocumentTitle} | {DocumentDate}")
                 # print(f"Save Location: {SaveLocation}")
-                print(f"Document Date: {DocumentDate}")
+                # print(f"Document Date: {DocumentDate}")
                 print(" ")
     
     print("All documents saved successfully")

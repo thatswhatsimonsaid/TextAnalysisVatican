@@ -16,6 +16,7 @@ def SaveVaticanDocuments(LanguageCode="en"):
     print("\nProcessing Vatican I documents:")
     Vatican1Docs = GetVatican1Documents(LanguageCode)
     SaveCouncilDocuments(Vatican1Docs, BaseURL, "Vatican_I")
+    print("")
     
     ### Get Vatican II Documents ###
     print("\nProcessing Vatican II documents:")
@@ -43,5 +44,5 @@ def SaveCouncilDocuments(documents, BasePath, CouncilName):
             pickle.dump(doc, output)
         
         print(f"Saved: {doc['title']}")
-        print(f"Date: {doc['date']}")
-        print()
+        # print(f"Date: {doc['date']}")
+        # print()
