@@ -35,7 +35,7 @@ def WordFrequencyAnalysis(TextInput, StopWordsSet, TopN=20):
 
     return WordFrequencyDF
 
-def GetEncylicalWordFrequency(df_input, GroupByVar="PopeName", StopWordsSet=None, TopNInput=1000):
+def GetWordFrequency(df_input, GroupByVar="PopeName", StopWordsSet=None, TopNInput=1000):
     
     ### Set Up ###
     WordCounts = {}

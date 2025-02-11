@@ -4,6 +4,7 @@ import re
 import pickle
 from utils.Council.GetVatican1Documents import *
 from utils.Council.GetVatican2Documents import *
+from utils.Council.ExtractVatican1Documents_OtherWebsite import *
 
 ### Save Vatican Documents ###
 def SaveVaticanDocuments(LanguageCode="en"):
@@ -14,7 +15,8 @@ def SaveVaticanDocuments(LanguageCode="en"):
     
     ### Get Vatican I Documents ###
     print("\nProcessing Vatican I documents:")
-    Vatican1Docs = GetVatican1Documents(LanguageCode)
+    # Vatican1Docs = GetVatican1Documents(LanguageCode)
+    Vatican1Docs = ExtractVatican1DocumentFromAnotherWebsite("https://www.ccel.org/ccel/schaff/creeds2.v.ii.i.html")
     SaveCouncilDocuments(Vatican1Docs, BaseURL, "Vatican_I")
     print("")
     

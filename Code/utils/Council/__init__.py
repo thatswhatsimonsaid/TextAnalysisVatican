@@ -5,3 +5,4 @@ from .GetVatican2Documents import *
 from .GetVatican2URLS import *
 from .LoadCouncilDocuments import *
 from .SaveCouncilDocuments import *
+from .ExtractVatican1Documents_OtherWebsite import *
