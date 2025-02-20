@@ -1,3 +1,13 @@
+"""
+Extracts the contents of the First Vatican Council. This function is used as the official Vatican link only contains Latin links, with this function used for a link with an English translation.
+
+Args:
+    url: URL to the First or Second Vatican Council
+
+Return: 
+    Returns a dictionary containing the two documents of the First Vatican Council.
+"""
+
 ### Packages ###
 import requests
 from bs4 import BeautifulSoup

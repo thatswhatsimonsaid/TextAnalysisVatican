@@ -1,8 +1,19 @@
+"""
+Extracts the contents of the First and Second Vatican Council.
+
+Args:
+    url: URL to the First or Second Vatican Council
+    headers: Header of the documents
+
+Return: 
+    Returns a dictionary containing the title, texts, date, and url of the council document.
+"""
+
 ### Packages ###
 import requests
 from bs4 import BeautifulSoup
 import re
-from utils.Main.CleanText import *  # Import ProcessText function
+from utils.Main.CleanText import *
 
 ### Extract Document Content ###
 def ExtractDocumentContentFunction(url, headers):

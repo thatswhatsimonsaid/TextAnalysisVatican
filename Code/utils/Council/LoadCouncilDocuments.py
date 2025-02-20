@@ -1,3 +1,13 @@
+"""
+Reformats and loads the documents of the First and Second Vatican Council 
+
+Args:
+    BaseURL: The base URL of the Second Vatican Council.
+
+Return: 
+    A dataframe containing all the documents of the First and Second Vatican Council.
+"""
+
 ### Packages ###
 import os
 import pickle

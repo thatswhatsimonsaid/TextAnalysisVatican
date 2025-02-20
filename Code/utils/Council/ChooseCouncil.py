@@ -1,3 +1,7 @@
+"""
+Wrapper function to analyze the correct council.
+"""
+
 ### Packages ###
 from .GetVatican1Documents import *
 from .GetVatican2Documents import *

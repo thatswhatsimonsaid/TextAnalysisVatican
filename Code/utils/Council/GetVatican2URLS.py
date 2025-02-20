@@ -1,7 +1,17 @@
+"""
+Extracts the URLS of each document of the Second Vatican Council.
+
+Args:
+    BaseURL: The base URL of the Second Vatican Council.
+    LanguageCode: The code of the language the doucment is to be extracted from
+
+Return: 
+    Returns a list of containing all the links to the documents of the Second Vatican Council.
+"""
+
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
-
 
 ### Get Vatican 2 URLS ###
 def GetVatican2URLS(BaseURL, LanguageCode):

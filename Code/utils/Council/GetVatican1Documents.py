@@ -1,3 +1,13 @@
+"""
+Extracts the all contents of the First Vatican Council by running ExtractDocumentContentFunction on every document.
+
+Args:
+    LanguageCode: The code of the language the doucment is to be extracted from
+
+Return: 
+    Returns a list of all the contents of the First Vatican Council.
+"""
+
 from .ExtractDocumentContent import *
 
 ### Get Vatican 1 Documents ###
