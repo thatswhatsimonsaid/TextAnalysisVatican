@@ -10,6 +10,9 @@ def PlotSentimentScores(df, SentimentScore):
     ### Format Date ###
     df['DocumentDate'] = pd.to_datetime(df['DocumentDate'])
     
+    ### Sort Data by Date ###
+    df = df.sort_values(by='DocumentDate')
+    
     ### Get Pope ###
     PopeNameList = df['PopeName'].unique()
     ColorPalette = sns.color_palette('tab10', len(PopeNameList))
