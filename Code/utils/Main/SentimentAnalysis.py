@@ -50,3 +50,16 @@ def GetEncylicalSentiments(df):
     
     ### Return ###
     return Output
+
+
+### Apply (no meaningful results) ###
+# ### Coherence Scores ###
+# CoherenceColumns = [col for col in PopeTopicModellingResults_Comparison.columns if 'Coherence' in col]
+# PopeTopicModellingResults_Comparison[CoherenceColumns]
+
+# # Sentiment Analysis
+# EncyclicalSentimentsDF = GetEncylicalSentiments(df_Encyclicals)
+# EncyclicalSentimentsDF
+# PlotSentimentScores(EncyclicalSentimentsDF, "NegativeScore")
+# PlotSentimentScores(EncyclicalSentimentsDF, "NeutralScore")
+# PlotSentimentScores(EncyclicalSentimentsDF, "PositiveScore")

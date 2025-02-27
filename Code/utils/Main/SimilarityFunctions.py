@@ -78,3 +78,11 @@ def AnalyzeDocumentSimilarities(df_Councils, df_Encyclicals):
     SimilarityScores_ByPope = CalculatePopeSimilarities(SimilarityScores_ByDocument)
     
     return SimilarityScores_ByDocument, SimilarityScores_ByPope
+
+
+### Run the analysis (No meaningful results) ###
+# DocumentSimilarity, PopeSimilarity = AnalyzeDocumentSimilarities(df_Councils, df_Encyclicals)
+# DocumentSimilarity[DocumentSimilarity["Vatican1_Similarity"] > DocumentSimilarity["Vatican2_Similarity"]]
+# PopeSimilarity["Post_Minus_Pre"] = PopeSimilarity["Vatican2_Similarity"] - PopeSimilarity["Vatican1_Similarity"]
+# PopeSimilarity.sort_values("Post_Minus_Pre")[["PopeName", "Post_Minus_Pre"]]
+# PlotCouncilEncyclicalSimilarityScore(PopeSimilarity)
