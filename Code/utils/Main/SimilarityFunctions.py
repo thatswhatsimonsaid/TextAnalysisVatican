@@ -28,17 +28,17 @@ def CalculateDocumentSimilarities(df_Councils, df_Encyclicals):
     Vatican1_Length = len(Vatican1_docs)
     Vatican2_Length = Vatican1_Length + len(Vatican2_docs)
     
-    # Calculate average vectors - convert to numpy arrays
+    # Calculate average vectors ###
     Vatican1_Vector = np.asarray(TFIDF_Matrix[:Vatican1_Length].mean(axis=0))
     Vatican2_Vector = np.asarray(TFIDF_Matrix[Vatican1_Length:Vatican2_Length].mean(axis=0))
     
     ### Calculate Similarities for Each Encyclical ###
     SimilarityScores = []
-    encyclical_vectors = TFIDF_Matrix[Vatican2_Length:]
+    EncyclicalVectors = TFIDF_Matrix[Vatican2_Length:]
     
     for i, row in df_Encyclicals.iterrows():
 
-        CurrentEncylical = np.asarray(encyclical_vectors[i].toarray())
+        CurrentEncylical = np.asarray(EncyclicalVectors[i].toarray())
         Vatican1SimilarityScore = cosine_similarity(CurrentEncylical, Vatican1_Vector)[0][0]
         Vatican2SimilarityScore = cosine_similarity(CurrentEncylical, Vatican2_Vector)[0][0]
         
