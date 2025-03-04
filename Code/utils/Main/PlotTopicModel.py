@@ -1,377 +1,172 @@
 ### Import packages ###
-import gc
 import pandas as pd
-import numpy as np
+import seaborn as sns
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
-from nltk.corpus import stopwords
-from collections import Counter
-from sklearn.metrics.pairwise import cosine_similarity
-from scipy.sparse import csr_matrix
 from utils.Main.CleanText import *
 
-### Context Vector Functions ###
-def CalculateContextVectors(words, ConceptTerms1, ConceptTerms2, WindowSize=100):
-
-    ### Build vocabulary and index mapping ###
-    Vocabulary = sorted(set(words))
-    WordToIndex = {word: i for i, word in enumerate(Vocabulary)}
-    
-    ### Initialize context vectors ###
-    ContextVector1 = np.zeros(len(Vocabulary))
-    ContextVector2 = np.zeros(len(Vocabulary))
-    
-    ### Build context vectors ###
-    for i, word in enumerate(words):
-
-        ## Process first concept terms ##
-        if word in ConceptTerms1:
-            WindowStart = max(0, i - WindowSize)
-            WindowEnd = min(len(words), i + WindowSize + 1)
-            
-            for ContextPos in range(WindowStart, WindowEnd):
-                if ContextPos != i:  # Skip the concept term itself
-                    ContextWord = words[ContextPos]
-                    ContextVector1[WordToIndex[ContextWord]] += 1
-        
-        ## Process second concept terms ##
-        if word in ConceptTerms2:
-            WindowStart = max(0, i - WindowSize)
-            WindowEnd = min(len(words), i + WindowSize + 1)
-            
-            for ContextPos in range(WindowStart, WindowEnd):
-                if ContextPos != i:  # Skip the concept term itself
-                    ContextWord = words[ContextPos]
-                    ContextVector2[WordToIndex[ContextWord]] += 1
-    
-    ### Return ###
-    return ContextVector1, ContextVector2
-
-def CalculateCosineSimilarity(words, ConceptTerms1, ConceptTerms2):
-
-    ### Get context vectors ###
-    ContextVector1, ContextVector2 = CalculateContextVectors(words, ConceptTerms1, ConceptTerms2)
-
-    ### Calculate cosine similarity ###
-    Similarity = cosine_similarity(csr_matrix(ContextVector1.reshape(1, -1)), csr_matrix(ContextVector2.reshape(1, -1)))[0][0]
-    
-    ### Return ###
-    return Similarity
-
-### Data Processing Functions ###
-def GenerateTimePeriods(df, IntervalYears):
-
-    ### Year ###
-    MinYear = df['Year'].min()
-    MaxYear = df['Year'].max()
-    
-    ### Adjust MinYear to start at a clean interval ###
-    StartYear = MinYear - (MinYear % IntervalYears)
-    if StartYear < MinYear:
-        StartYear += IntervalYears
-        
-    ### Create list of time periods ###
-    TimePeriods = []
-    CurrentYear = StartYear
-    while CurrentYear < MaxYear:
-        EndYear = min(CurrentYear + IntervalYears - 1, MaxYear)
-        TimePeriods.append((CurrentYear, EndYear))
-        CurrentYear = EndYear + 1
-
-    ### Return ###    
-    return TimePeriods
-
-def CalculateSimilarityScores(PeriodDocuments, ConceptTerms1, ConceptTerms2):
+### Preprocess Data ###
+def PreprocessTopicData(df):
 
     ### Set Up ###
-    StopWordsList = set(stopwords.words('english'))
-    SimilarityScores = []
+    ProcessedData = []
     
-    ### Loop through documents ###
-    for doc in PeriodDocuments['DocumentText']:
+    ### Looop through popes ###
+    for pope in df.index:
 
-        ## Words ##
-        words = ProcessText(doc, StopWords=StopWordsList)
+        ## Remove Topics ##
+        pope_name = pope.replace('_Topics', '')
         
-        ## Calculate similarity and add to scores if positive ##
-        Similarity = CalculateCosineSimilarity(words, ConceptTerms1, ConceptTerms2)
-        if Similarity > 0:
-            SimilarityScores.append(Similarity)
+        ## Loop through all topics ##
+        for col in df.columns:
+
+            # Split words and clean #
+            words = [word.strip() for word in df.loc[pope, col].split(',')]
+            
+            # Add each word with its position #
+            for pos, word in enumerate(words):
+                ProcessedData.append({
+                    'pope': pope_name,
+                    'word': word,
+                    'position': pos
+                })
     
     ### Return ###
-    return SimilarityScores
+    return pd.DataFrame(ProcessedData)
 
-def CalculateConfidenceIntervals(SimilarityScores, NumBootstrap=1000):
-
-    ### Mean ###
-    MeanSimilarity = np.mean(SimilarityScores)
+### Heat Map ###
+def CreateTopicHeatmap(ProcessedDF):
+    ### Top Words ###
+    TopWords = ProcessedDF['word'].value_counts().head(30).index.tolist()
     
-    ### Bootstrap for confidence interval ###
-    BootstrapMeans = []
-    for _ in range(NumBootstrap):
-        BootstrapSample = np.random.choice(SimilarityScores, 
-                                           size=len(SimilarityScores), 
-                                           replace=True)
-        BootstrapMeans.append(np.mean(BootstrapSample))
-    
-    ### Confidence Interval ###
-    CILow = np.percentile(BootstrapMeans, 2.5)
-    CIHigh = np.percentile(BootstrapMeans, 97.5)
-    
-     ### Return ###
-    return MeanSimilarity, CILow, CIHigh
-
-### Visualization Functions ###
-def CreateProximityPlot(ResultsDF, ConceptName1, ConceptName2):
-
-    ### Initialize ###
-    fig, ax = plt.subplots(figsize=(20, 8))
-
-    ### Make Plot ###
-    ax.errorbar(
-        x=ResultsDF['StartYear'] + (ResultsDF['EndYear'] - ResultsDF['StartYear']) / 2,
-        y=ResultsDF['Proximity'],
-        yerr=[ResultsDF['Proximity'] - ResultsDF['CI_Low'], 
-              ResultsDF['CI_High'] - ResultsDF['Proximity']],
-        fmt='o-',
-        capsize=5,
-        capthick=1.5,
-        elinewidth=1.5,
-        markersize=8
+    ### Pivot Table with weighted frequencies ###
+    ProcessedDF['Weight'] = 1 / (ProcessedDF['position'] + 1)
+    WordFreq = ProcessedDF.pivot_table(
+        index='pope', 
+        columns='word', 
+        values='Weight', 
+        aggfunc='sum',
+        fill_value=0
     )
-
-    ### Add Vatican II Line ###
-    ax.axvline(x=1962, color='r', linestyle='--', alpha=0.8, label='Vatican II (1962)')
-
-    ### Aesthetics with bold text ###
-    ax.set_ylabel(f'{ConceptName1}-{ConceptName2} Cosine Similarity', fontsize=14, fontweight='bold')
-    ax.set_xlabel('Time Period', fontsize=14, fontweight='bold')
     
-    # Escape the % symbol in the title with a backslash and make title bold
-    ax.set_title(r'Cosine Similarity in Papal Encyclicals' + '\n' + 
-                r'Evolution Over Time (with 95\% confidence interval)', 
-                fontsize=16, fontweight='bold')
+    ### Cleaning ###
+    WordFreq = WordFreq[[w for w in TopWords if w in WordFreq.columns]]
+    WordFreq = WordFreq.div(WordFreq.sum(axis=1), axis=0)
+    ChronologicalOrder = ['leo_xiii',  'benedict_xv',  'pius_x',  'pius_xi',  'pius_xii', 'john_xxiii', 'paul_vi', 'john_paul_ii', 'benedict_xvi', 'francesco']
+    AvailablePopes = [pope for pope in ChronologicalOrder if pope in WordFreq.index]
+    WordFreq = WordFreq.loc[AvailablePopes]
     
-    ### Set Regular Decade X-Ticks with rotation and bold text ###
-    MinYear = min(ResultsDF['StartYear'])
-    MaxYear = 2024
-    DecadeStart = (MinYear // 10) * 10  # Round down to nearest decade
-    RegularTicks = np.arange(DecadeStart, MaxYear, 10)  # Create ticks every 10 years
-    ax.set_xticks(RegularTicks)
-    ax.set_xticklabels([str(year) for year in RegularTicks], 
-                       rotation=45,  # Rotate x-ticks 45 degrees
-                       fontweight='bold')  # Make x-ticks bold
+    # Set global font size for all plots
+    plt.rcParams.update({'font.size': 14})  # Increase base font size
     
-    ### Make y-ticks bold ###
-    for tick in ax.yaxis.get_major_ticks():
-        tick.label1.set_fontweight('bold')
+    ### Create Plot ###
+    fig, ax = plt.subplots(figsize=(22, 10))  # Larger figure size
     
-    ### Set x-axis limits to end with Pope Francis's reign ###
-    ax.set_xlim(MinYear, 2024)
+    # Create the heatmap with increased font sizes
+    sns.heatmap(WordFreq, cmap="YlOrRd", annot=False, linewidths=0.5, ax=ax)
     
-    ax.grid(True, linestyle='--', alpha=0.7)
+    ### Vatican II Line ###
+    VaticanIIIndex = AvailablePopes.index('john_xxiii') if 'john_xxiii' in AvailablePopes else -1
+    plt.axhline(y=VaticanIIIndex, color='blue', linewidth=3)  # Slightly thicker line
+    # You can uncomment this to add the Vatican II label with larger font
+    # plt.text(-2, VaticanIIIndex - 0.5, 'Vatican II', fontsize=16, color='blue', fontweight='bold')
     
-    ### Bold the legend ###
-    legend = ax.legend(loc='best')
-    plt.setp(legend.get_title(), fontweight='bold')
+    ### Aesthetics with bold text and larger fonts ###
+    plt.title("Key Words Frequency Across Papal Encyclicals", fontsize=20, fontweight='bold')
+    plt.ylabel("Pope", fontsize=18, fontweight='bold')
+    plt.xlabel("Words", fontsize=18, fontweight='bold')
     
-    ### Adjust layout for rotated x-ticks ###
-    plt.tight_layout(rect=[0, 0.05, 1, 1])
+    # Set xticks rotation and larger font
+    plt.xticks(rotation=45, ha='right', fontsize=16)
+    plt.yticks(fontsize=16)
     
-    ### Output ###
-    return fig, ax
-
-def AddPopeReignsToPlot(ax):
-
-    ### Papal Reigns ###
-    PopeReigns = [
-        ("Leo XIII", 1878, 1903, "tab:red"),
-        ("Pius X", 1903, 1914, "tab:green"),
-        ("Benedict XV", 1914, 1922, "tab:blue"),
-        ("Pius XI", 1922, 1939, "tab:purple"),
-        ("Pius XII", 1939, 1958, "tab:orange"),
-        ("John XXIII", 1958, 1963, "tab:brown"),
-        ("Paul", 1963, 1978, "tab:pink"),
-        ("John Paul I", 1978, 1978, "tab:gray"),
-        ("John Paul II", 1978, 2005, "tab:cyan"),
-        ("Benedict XVI", 2005, 2013, "tab:olive"),
-        ("Francis", 2013, 2024, "tab:blue")
-    ]
+    # Make xtick labels bold
+    for label in ax.get_xticklabels():
+        label.set_fontweight('bold')
     
-    ### Pope Color Bars ###
-    BarHeight = 0.01
-    YMin, YMax = ax.get_ylim()
+    # Make ytick labels bold
+    for label in ax.get_yticklabels():
+        label.set_fontweight('bold')
     
-    ### Plot Papal Color Bars ###
-    for Pope, Start, End, Color in PopeReigns:
-
-        ## Draw Pope Color Bar ##
-        rect = mpatches.Rectangle(
-            (Start, YMin), 
-            End - Start, 
-            (YMax - YMin) * BarHeight,
-            edgecolor='black', 
-            facecolor=Color, 
-            alpha=0.8,
-            transform=ax.transData,
-            clip_on=False,
-            zorder=100
-        )
-        ax.add_patch(rect)
-        
-        ## Add Pope Name with bold text ##
-        ax.text(
-            Start + (End - Start)/2,
-            YMin + (YMax - YMin) * 0.03,
-            Pope,
-            ha='center', 
-            va='bottom', 
-            fontsize=9,
-            fontweight='bold',
-            bbox=dict(facecolor='white', alpha=0.8, pad=0.2, boxstyle='round', edgecolor='gray'),
-            transform=ax.transData,
-            zorder=101
-        )
+    # Add a color bar label with increased font size
+    cbar = ax.collections[0].colorbar
+    cbar.ax.set_ylabel("Frequency", fontsize=16, fontweight='bold')
+    
+    # Apply tighter layout but with more padding
+    plt.tight_layout(pad=1.5)
     
     ### Return ###
-    return ax
+    return plt
 
-def AddConceptLabels(fig, ConceptName1, ConceptName2, ConceptTerms1, ConceptTerms2):
+### Topic Model Similarity ###
+def CreateTopicSimilarity(df):
+
+    ### Extract all unique topics ##
+    AllWords = set()
+    for col in df.columns:
+        for TopicText in df[col]:
+            words = [w.strip() for w in TopicText.split(',')]
+            AllWords.update(words)
     
-    ### Spacing ###
-    plt.subplots_adjust(bottom=0.20)  # Increase bottom margin for two lines of text
+    ### Pope word matrix ###
+    PopeWordMatrix = {}
+    for pope in df.index:
+        WordCounts = {word: 0 for word in AllWords}
+        for col in df.columns:
+            TopicText = df.loc[pope, col]
+            words = [w.strip() for w in TopicText.split(',')]
+            for pos, word in enumerate(words):
+
+                # Weight by position (earlier words are more important)
+                WordCounts[word] += 1 / (pos + 1)
+        PopeWordMatrix[pope] = WordCounts
     
-    ### Format concept terms ###
-    terms1_str = ", ".join(ConceptTerms1)
-    terms2_str = ", ".join(ConceptTerms2)
+    ### Cleaning ###
+    PopeWordDF = pd.DataFrame(PopeWordMatrix).T
+    RowSums = PopeWordDF.sum(axis=1)
+    PopeWordDF = PopeWordDF.div(RowSums, axis=0)
     
-    ### Handle line wrapping ###
-    max_chars = 80
+    ### Cosine Similarity ###
+    from sklearn.metrics.pairwise import cosine_similarity
+    similarity = cosine_similarity(PopeWordDF)
+    SimilarityDF = pd.DataFrame(similarity, index=PopeWordDF.index, columns=PopeWordDF.index)
     
-    # Handle line wrapping for concept 1
-    if len(terms1_str) > max_chars:
-        # Split into chunks of max_chars
-        chunks1 = []
-        current_chunk = ""
-        for term in ConceptTerms1:
-            if len(current_chunk + term + ", ") > max_chars and current_chunk:
-                chunks1.append(current_chunk.rstrip(", "))
-                current_chunk = term + ", "
-            else:
-                current_chunk += term + ", "
-        if current_chunk:
-            chunks1.append(current_chunk.rstrip(", "))
+    # Get chronological order of popes
+    OrderedPope = ['leo_xiii_Topics', 'benedict_xv_Topics', 'pius_x_Topics', 'pius_xi_Topics', 'pius_xii_Topics','john_xxiii_Topics', 'paul_vi_Topics', 'john_paul_ii_Topics', 'benedict_xvi_Topics', 'francesco_Topics']
+    AvailablePopes = [pope for pope in OrderedPope if pope in SimilarityDF.index]
+    SimilarityDF = SimilarityDF.loc[AvailablePopes, AvailablePopes]
+    
+    ### Plot ###
+    plt.figure(figsize=(20, 8))
+    sns.heatmap(
+        SimilarityDF, 
+        annot=True, 
+        cmap="YlGnBu", 
+        vmin=0, 
+        vmax=1,
+        fmt=".2f",
+        linewidths=0.5
+    )
+    
+    ### Add markers for pre/post Vatican II ###
+    Vatican2Index = AvailablePopes.index('john_xxiii_Topics') if 'john_xxiii_Topics' in AvailablePopes else -1
+    if Vatican2Index > 0:
+        plt.axhline(y=Vatican2Index, color='red', linewidth=2)
+        plt.axvline(x=Vatican2Index, color='red', linewidth=2)
         
-        concept1_text = f"\\textbf{{{ConceptName1} concept words:}}\n" + "\n".join(chunks1)
-    else:
-        concept1_text = f"\\textbf{{{ConceptName1} concept words:}} {terms1_str}"
+        ### Legend ###
+        red_patch = mpatches.Patch(color='red', label='Vatican II Boundary')
+        plt.legend(handles=[red_patch], loc='upper left')
     
-    # Handle line wrapping for concept 2
-    if len(terms2_str) > max_chars:
-        # Split into chunks of max_chars
-        chunks2 = []
-        current_chunk = ""
-        for term in ConceptTerms2:
-            if len(current_chunk + term + ", ") > max_chars and current_chunk:
-                chunks2.append(current_chunk.rstrip(", "))
-                current_chunk = term + ", "
-            else:
-                current_chunk += term + ", "
-        if current_chunk:
-            chunks2.append(current_chunk.rstrip(", "))
-        
-        concept2_text = f"\\textbf{{{ConceptName2} concept words:}}\n" + "\n".join(chunks2)
-    else:
-        concept2_text = f"\\textbf{{{ConceptName2} concept words:}} {terms2_str}"
-    
-    ### Add concept texts with bold text ###
-    fig.text(0.5, 0.07, concept1_text, ha='center', fontsize=10, fontweight='bold',
-           bbox=dict(facecolor='white', alpha=0.8, boxstyle='round,pad=0.5', 
-                     edgecolor='gray', linewidth=1))
-    
-    fig.text(0.5, 0.01, concept2_text, ha='center', fontsize=10, fontweight='bold',
-           bbox=dict(facecolor='white', alpha=0.8, boxstyle='round,pad=0.5', 
-                     edgecolor='gray', linewidth=1))
-    
+    ### Aesthetics ###
+    plt.title("Similarity Between Papal Topic Distributions", fontsize=16)
+    plt.tight_layout()
+
     ### Return ###
-    return fig
-
-### Main Analysis Function ###
-def CosineSimilarityFunction(df_Encyclicals, IntervalYears, MinDocs, Concept1, Concept2):
-
-    ### Concept Terms and Keys ###
-    ConceptName1 = list(Concept1.keys())[0]
-    ConceptName2 = list(Concept2.keys())[0]
-    ConceptTerms1 = list(Concept1.values())[0]
-    ConceptTerms2 = list(Concept2.values())[0]
-    ConceptTerms1 = [c.lower() for c in ConceptTerms1]
-    ConceptTerms2 = [c.lower() for c in ConceptTerms2]
-
-    ### Prepare DataFrame ###
-    df = df_Encyclicals.copy()
-    df['DocumentDate'] = pd.to_datetime(df['DocumentDate'])
-    df['Year'] = df['DocumentDate'].dt.year
-    
-    ### Generate time periods ###
-    TimePeriods = GenerateTimePeriods(df, IntervalYears)
-
-    ### Calculate Similarities for Each Period ###
-    Results = []
-    for StartYear, EndYear in TimePeriods:
-        ## Filter documents for the current time period ##
-        PeriodDocuments = df[(df['Year'] >= StartYear) & (df['Year'] <= EndYear)]
-        
-        ## Skip periods with insufficient documents ##
-        if len(PeriodDocuments) < MinDocs:
-            print(f"Skipping period {StartYear}-{EndYear}: insufficient documents ({len(PeriodDocuments)} found, minimum {MinDocs} required)")
-            continue
-        
-        ## Calculate similarity scores ##
-        SimilarityScores = CalculateSimilarityScores(PeriodDocuments, ConceptTerms1, ConceptTerms2)
-        
-        ## Skip periods with no similarity scores ##
-        if not SimilarityScores:
-            print(f"Skipping period {StartYear}-{EndYear}: no similarity scores found (tried {len(PeriodDocuments)} documents)")
-            continue
-        
-        ## Calculate statistics with confidence intervals ##
-        MeanSimilarity, CILow, CIHigh = CalculateConfidenceIntervals(SimilarityScores)
-        
-        ## Store period results ##
-        Results.append({
-            'StartYear': StartYear,
-            'EndYear': EndYear,
-            'Proximity': MeanSimilarity,
-            'CI_Low': CILow,
-            'CI_High': CIHigh,
-            'NumDocs': len(PeriodDocuments),
-            'ScoredDocs': len(SimilarityScores)
-        })
-        
-        ## Clean up ##
-        gc.collect()
-
-    ### Format Results ###
-    ResultsDF = pd.DataFrame(Results)
-    
-    ### Create Visualization ###
-    fig, ax = CreateProximityPlot(ResultsDF, ConceptName1, ConceptName2)
-    ax = AddPopeReignsToPlot(ax)
-    fig = AddConceptLabels(fig, ConceptName1, ConceptName2, ConceptTerms1, ConceptTerms2)
-        
-    ### Print Summary ###
-    print("\nSummary of results:")
-    print(ResultsDF[['StartYear', 'EndYear', 'Proximity', 'NumDocs', 'ScoredDocs']])
-    print(f"\nAnalysis used {IntervalYears}-year intervals with minimum {MinDocs} documents per period")
-    print(f"Analysis used cosine similarity for measuring concept proximity")
-    
-    # Return results and figure
-    return ResultsDF, fig, None
-
+    return plt
 
 ### Topic Evolution Function ###
 def CreateTopicEvolution(ProcessedDF):
-
     ### Categories to categorize topics ###
     Categories = {
         'Doctrinal': [
@@ -429,8 +224,11 @@ def CreateTopicEvolution(ProcessedDF):
     AvailablePopes = [pope for pope in ChronologicalOrder if pope in CategoryScore.index]
     CategoryScore = CategoryScore.loc[AvailablePopes]
     
+    # Set global font size for all plots
+    plt.rcParams.update({'font.size': 14})  # Increase base font size
+    
     ### Create plot with explicit figsize in inches ###
-    fig, ax = plt.subplots(figsize=(20, 8))  # Force exact figure size
+    fig, ax = plt.subplots(figsize=(22, 10))  # Slightly larger figure size
     
     # Make sure we have the right categories and order
     plot_categories = ['Doctrinal', 'Spiritual', 'Social', 'Moral', 'Other']
@@ -444,29 +242,46 @@ def CreateTopicEvolution(ProcessedDF):
     )
     
     ## Vatican II line ###
-    VaticanIIIndex = AvailablePopes.index('john_xxiii') if 'john_xxiii' in AvailablePopes else -1
+    # VaticanIIIndex = AvailablePopes.index('john_xxiii') if 'john_xxiii' in AvailablePopes else -1
     plt.axvline(x=VaticanIIIndex - 0.5, color='red', linestyle='--', linewidth=2)
-    plt.text(VaticanIIIndex - 0.5, 102, 'Vatican II', rotation=90, color='red', fontweight='bold', fontsize=12)
+    # plt.text(VaticanIIIndex - 0.5, 102, 'Vatican II', rotation=90, color='red', fontweight='bold', fontsize=16)
     
-    ### Aesthetics with bold text ###
+    ### Aesthetics with bold text and larger font sizes ###
     plt.title('Topic Category Distribution Across Papal Encyclicals', 
-              fontsize=16, fontweight='bold')  # Bold title
-    plt.ylabel('Percentage (%)', fontsize=14, fontweight='bold')  # Bold y-label
-    plt.xlabel('Pope', fontsize=14, fontweight='bold')  # Bold x-label
+              fontsize=20, fontweight='bold')  # Larger bold title
+    plt.ylabel('Percentage (%)', fontsize=18, fontweight='bold')  # Larger bold y-label
+    plt.xlabel('', fontsize=18, fontweight='bold')  # Larger bold x-label
     
-    # Make x-ticks and y-ticks bold
-    plt.xticks(rotation=45, fontweight='bold')
-    plt.yticks(fontweight='bold')
+    # Set xticks rotation and larger font
+    plt.xticks(rotation=45, fontsize=16)
+    plt.yticks(fontsize=16)
     
-    # Move legend to the bottom and arrange in one row
-    legend = plt.legend(title='Category', loc='upper center', bbox_to_anchor=(0.5, -0.15), 
-               ncol=5)
+    # Make xtick and ytick labels bold
+    for label in ax.get_xticklabels():
+        label.set_fontweight('bold')
+    
+    for label in ax.get_yticklabels():
+        label.set_fontweight('bold')
+    
+    # Move legend to the bottom and arrange in one row with LARGER text
+    legend = plt.legend(title='Category', loc='upper center', bbox_to_anchor=(0.5, -0.17), 
+               ncol=5, fontsize=18, title_fontsize=20)  # Increased fontsize of legend text
     plt.setp(legend.get_title(), fontweight='bold')
+    
+    # Make the legend markers larger
+    for handle in legend.legendHandles:
+        handle.set_height(12)  # Increased height
+        handle.set_width(24)   # Increased width
+    
+    # Make legend labels bold
+    for text in legend.get_texts():
+        text.set_fontweight('bold')
+        text.set_fontsize(18)  # Ensure consistent font size
     
     plt.ylim(0, 100)
     
-    # Adjust layout to make room for legend at the bottom
-    plt.tight_layout(rect=[0, 0.05, 1, 1])
+    # Add more space at bottom for the larger legend
+    plt.tight_layout(rect=[0, 0.07, 1, 1])  # Added more space at bottom
     
     # Get the current figure
     fig = plt.gcf()
@@ -474,137 +289,83 @@ def CreateTopicEvolution(ProcessedDF):
     # Return the figure
     return fig
 
+### Topic Model Similarity ###
+def CreateTopicSimilarity(df):
 
-### Combined Similarity Plot Functions ###
-def CreateCombinedProximityPlot(ResultsDF1, ResultsDF2, ConceptName1A, ConceptName1B, ConceptName2A, ConceptName2B):
-    """
-    Create a combined plot showing both sets of concept relationships,
-    without the concept word labels at the bottom.
+    ### Extract all unique topics ##
+    AllWords = set()
+    for col in df.columns:
+        for TopicText in df[col]:
+            words = [w.strip() for w in TopicText.split(',')]
+            AllWords.update(words)
     
-    Parameters:
-    ResultsDF1 - DataFrame with Faith-Reason results
-    ResultsDF2 - DataFrame with Divine-Human results
-    ConceptNameXY - The concept names for labeling
-    """
-    
-    # Initialize with exact figsize of 20x8 inches
-    fig, ax = plt.subplots(figsize=(20, 8))
-    
-    # Plot Faith-Reason data
-    line1 = ax.errorbar(
-        x=ResultsDF1['StartYear'] + (ResultsDF1['EndYear'] - ResultsDF1['StartYear']) / 2,
-        y=ResultsDF1['Proximity'],
-        yerr=[ResultsDF1['Proximity'] - ResultsDF1['CI_Low'], 
-              ResultsDF1['CI_High'] - ResultsDF1['Proximity']],
-        fmt='o-',
-        capsize=5,
-        capthick=1.5,
-        elinewidth=1.5,
-        markersize=8,
-        color='blue',
-        label=f'{ConceptName1A}-{ConceptName1B}'
-    )
-    
-    # Plot Divine-Human data
-    line2 = ax.errorbar(
-        x=ResultsDF2['StartYear'] + (ResultsDF2['EndYear'] - ResultsDF2['StartYear']) / 2,
-        y=ResultsDF2['Proximity'],
-        yerr=[ResultsDF2['Proximity'] - ResultsDF2['CI_Low'], 
-              ResultsDF2['CI_High'] - ResultsDF2['Proximity']],
-        fmt='s-',  # Square markers to differentiate
-        capsize=5,
-        capthick=1.5,
-        elinewidth=1.5,
-        markersize=8,
-        color='green',  # Different color
-        label=f'{ConceptName2A}-{ConceptName2B}'
-    )
-    
-    # Add Vatican II Line
-    ax.axvline(x=1962, color='r', linestyle='--', alpha=0.8, label='Vatican II (1962)')
-    
-    # Aesthetics with bold text
-    ax.set_ylabel('Cosine Similarity', fontsize=14, fontweight='bold')
-    ax.set_xlabel('Time Period', fontsize=14, fontweight='bold')
-    
-    # Escape the % symbol in the title with a backslash and make title bold
-    ax.set_title(r'Cosine Similarity in Papal Encyclicals' + '\n' + 
-                r'Evolution Over Time (with 95\% confidence interval)', 
-                fontsize=16, fontweight='bold')
-    
-    # Set Regular Decade X-Ticks with rotation and bold text
-    MinYear = min(min(ResultsDF1['StartYear']), min(ResultsDF2['StartYear']))
-    MaxYear = 2024
-    DecadeStart = (MinYear // 10) * 10  # Round down to nearest decade
-    RegularTicks = np.arange(DecadeStart, MaxYear, 10)  # Create ticks every 10 years
-    ax.set_xticks(RegularTicks)
-    ax.set_xticklabels([str(year) for year in RegularTicks], 
-                       rotation=45,  # Rotate x-ticks 45 degrees
-                       fontweight='bold')  # Make x-ticks bold
-    
-    # Make y-ticks bold
-    for tick in ax.yaxis.get_major_ticks():
-        tick.label1.set_fontweight('bold')
-    
-    # Set x-axis limits
-    ax.set_xlim(MinYear, 2024)
-    
-    # Add grid and legend
-    ax.grid(True, linestyle='--', alpha=0.7)
-    
-    # Move legend to the right side outside the plot with bold title
-    legend = ax.legend(loc='upper left', bbox_to_anchor=(1.02, 1), 
-                     fontsize=12)
-    plt.setp(legend.get_title(), fontweight='bold')
-    
-    # Adjust layout to make room for legend and rotated x-ticks
-    plt.tight_layout(rect=[0, 0.05, 0.85, 1])
-    
-    # Return the figure and axis
-    return fig, ax
+    ### Pope word matrix ###
+    PopeWordMatrix = {}
+    for pope in df.index:
+        WordCounts = {word: 0 for word in AllWords}
+        for col in df.columns:
+            TopicText = df.loc[pope, col]
+            words = [w.strip() for w in TopicText.split(',')]
+            for pos, word in enumerate(words):
 
-def CombinedAnalysisFunction(df_Encyclicals, IntervalYears, MinDocs, 
-                            Concept1A, Concept1B, Concept2A, Concept2B):
-    """
-    Run analysis for both concept pairs and create a combined visualization.
+                # Weight by position (earlier words are more important)
+                WordCounts[word] += 1 / (pos + 1)
+        PopeWordMatrix[pope] = WordCounts
     
-    Parameters:
-    df_Encyclicals - DataFrame with the encyclical documents
-    IntervalYears - Size of time intervals to analyze
-    MinDocs - Minimum number of documents needed per period
-    ConceptXY - Dictionaries containing concept names and terms
-    """
+    ### Cleaning ###
+    PopeWordDF = pd.DataFrame(PopeWordMatrix).T
+    RowSums = PopeWordDF.sum(axis=1)
+    PopeWordDF = PopeWordDF.div(RowSums, axis=0)
     
-    # Run the first analysis (Faith-Reason)
-    ResultsDF1, _, _ = CosineSimilarityFunction(
-        df_Encyclicals, IntervalYears, MinDocs, Concept1A, Concept1B
+    ### Cosine Similarity ###
+    from sklearn.metrics.pairwise import cosine_similarity
+    similarity = cosine_similarity(PopeWordDF)
+    SimilarityDF = pd.DataFrame(similarity, index=PopeWordDF.index, columns=PopeWordDF.index)
+    
+    # Get chronological order of popes
+    OrderedPope = ['leo_xiii_Topics', 'benedict_xv_Topics', 'pius_x_Topics', 'pius_xi_Topics', 'pius_xii_Topics','john_xxiii_Topics', 'paul_vi_Topics', 'john_paul_ii_Topics', 'benedict_xvi_Topics', 'francesco_Topics']
+    AvailablePopes = [pope for pope in OrderedPope if pope in SimilarityDF.index]
+    SimilarityDF = SimilarityDF.loc[AvailablePopes, AvailablePopes]
+    
+    # Create cleaned labels (remove "_Topics" suffix)
+    CleanLabels = [pope.replace('_Topics', '') for pope in AvailablePopes]
+    
+    ### Plot ###
+    plt.figure(figsize=(20, 8))
+    
+    # Create heatmap with bold annotations for values
+    sns.heatmap(
+        SimilarityDF, 
+        annot=True, 
+        cmap="YlGnBu", 
+        vmin=0, 
+        vmax=1,
+        fmt=".2f",
+        linewidths=0.5,
+        annot_kws={"weight": "bold"},  # Bold values in cells
+        xticklabels=CleanLabels,  # Use clean labels without "_Topics"
+        yticklabels=CleanLabels   # Use clean labels without "_Topics"
     )
     
-    # Run the second analysis (Divine-Human)
-    ResultsDF2, _, _ = CosineSimilarityFunction(
-        df_Encyclicals, IntervalYears, MinDocs, Concept2A, Concept2B
-    )
+    ### Add markers for pre/post Vatican II ###
+    Vatican2Index = AvailablePopes.index('john_xxiii_Topics') if 'john_xxiii_Topics' in AvailablePopes else -1
+    if Vatican2Index > 0:
+        plt.axhline(y=Vatican2Index, color='red', linewidth=2)
+        plt.axvline(x=Vatican2Index, color='red', linewidth=2)
+        
+        ### Legend ###
+        # red_patch = mpatches.Patch(color='red', label='Vatican II Boundary')
+        # plt.legend(handles=[red_patch], loc='upper left')
     
-    # Get concept information
-    ConceptName1A = list(Concept1A.keys())[0]
-    ConceptName1B = list(Concept1B.keys())[0]
-    ConceptName2A = list(Concept2A.keys())[0]
-    ConceptName2B = list(Concept2B.keys())[0]
+    ### Aesthetics ###
+    # Bold title
+    plt.title("Similarity Between Papal Topic Distributions", fontsize=16, weight='bold')
     
-    # Create the combined visualization
-    fig, ax = CreateCombinedProximityPlot(
-        ResultsDF1, ResultsDF2, 
-        ConceptName1A, ConceptName1B, 
-        ConceptName2A, ConceptName2B
-    )
+    # Bold and rotate tick labels
+    plt.xticks(rotation=45, ha='right', weight='bold')  # Rotate x-ticks 45 degrees and make bold
+    plt.yticks(weight='bold')  # Make y-ticks bold
     
-    # Add pope reigns to the plot
-    ax = AddPopeReignsToPlot(ax)
-    
-    # Print summary
-    print("\nSummary of combined analysis:")
-    print(f"Analysis used {IntervalYears}-year intervals with minimum {MinDocs} documents per period")
-    print(f"Analysis used cosine similarity for measuring concept proximity")
-    
-    # Return results and figure
-    return ResultsDF1, ResultsDF2, fig
+    plt.tight_layout()
+
+    ### Return ###
+    return plt
